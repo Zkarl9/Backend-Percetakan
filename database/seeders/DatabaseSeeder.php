@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Create super admin user
         User::create([
             'name' => 'Super Admin',
             'email' => 'superadmin@admin.com',
@@ -22,5 +23,8 @@ class DatabaseSeeder extends Seeder
             'role' => 'superadmin',
             'is_active' => true,
         ]);
+
+        // Run the product seeder
+        $this->call(ProdukSeeder::class);
     }
 }

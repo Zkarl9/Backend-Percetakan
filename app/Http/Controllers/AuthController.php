@@ -10,34 +10,44 @@ class AuthController extends Controller
 {
     public function showLoginForm()
     {
-        return view('auth.login2');
+        if (auth()->check()) {
+            return redirect()->route('dashboard');
+        }
+        return view('auth.login-new');
     }
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
+        try {
+            $credentials = $request->validate([
+                'email' => 'required|email',
+                'password' => 'required',
+            ]);
 
-        if (Auth::attempt($credentials)) {
-            if (!auth()->user()->isActive()) {
-                Auth::logout();
-                return back()->withErrors([
-                    'email' => 'Your account is inactive.',
-                ]);
+            if (Auth::attempt($credentials)) {
+                if (!auth()->user()->isActive()) {
+                    Auth::logout();
+                    return back()->withErrors([
+                        'email' => 'Your account is inactive.',
+                    ]);
+                }
+
+                // Update last login time
+                auth()->user()->update(['last_login' => now()]);
+
+                $request->session()->regenerate();
+                return redirect()->intended('dashboard');
             }
 
-            // Update last login time
-            auth()->user()->update(['last_login' => now()]);
-
-            $request->session()->regenerate();
-            return redirect()->intended('dashboard');
+            return back()->withErrors([
+                'email' => 'The provided credentials do not match our records.',
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Login error: ' . $e->getMessage());
+            return back()->withErrors([
+                'error' => 'An error occurred during login. Please try again.',
+            ]);
         }
-
-        return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ]);
     }
 
     public function logout(Request $request)
