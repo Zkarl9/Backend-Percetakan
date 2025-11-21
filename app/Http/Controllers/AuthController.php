@@ -86,4 +86,56 @@ class AuthController extends Controller
             ->route('dashboard')
             ->with('success', 'Password has been changed successfully!');
     }
+
+    // API Methods
+    public function apiLogin(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string'
+        ]);
+
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+
+        if (!$user->is_active) {
+            return response()->json(['message' => 'Account is inactive'], 403);
+        }
+
+        $user->update(['last_login' => now()]);
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user
+        ]);
+    }
+
+    public function apiRegister(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|string|min:8|confirmed'
+        ]);
+
+        $user = \App\Models\User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'is_active' => true
+        ]);
+
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user
+        ], 201);
+    }
 }

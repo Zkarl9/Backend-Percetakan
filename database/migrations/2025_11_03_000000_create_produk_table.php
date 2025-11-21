@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('kategori');
             $table->decimal('harga', 10, 2);
             $table->text('deskripsi');
-            $table->string('gambar')->nullable();
+            $table->json('gambar');
             $table->timestamps();
         });
     }
