@@ -347,11 +347,7 @@
                                 <option value="Lazada">Lazada Indonesia</option>
                                 <option value="Bukalapak">Bukalapak</option>
                                 <option value="BliBli">BliBli</option>
-                                <option value="JD.id">JD.id</option>
-                                <option value="Zalora Indonesia">Zalora Indonesia</option>
-                                <option value="Bhinneka">Bhinneka</option>
-                                <option value="Elevenia">Elevenia</option>
-                                <option value="Orami">Orami</option>
+                                <option value="eCatalogue">eCatalogue</option>
                             </optgroup>
                             <optgroup label="📱 Social Commerce">
                                 <option value="Facebook Marketplace">Facebook Marketplace</option>
@@ -459,11 +455,7 @@
                                 <option value="Lazada">Lazada Indonesia</option>
                                 <option value="Bukalapak">Bukalapak</option>
                                 <option value="BliBli">BliBli</option>
-                                <option value="JD.id">JD.id</option>
-                                <option value="Zalora Indonesia">Zalora Indonesia</option>
-                                <option value="Bhinneka">Bhinneka</option>
-                                <option value="Elevenia">Elevenia</option>
-                                <option value="Orami">Orami</option>
+                                <option value="eCatalogue">eCatalogue</option>
                             </optgroup>
                             <optgroup label="📱 Social Commerce">
                                 <option value="Facebook Marketplace">Facebook Marketplace</option>

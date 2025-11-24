@@ -1,4 +1,5 @@
 <?php
+// app/Http/Controllers/EcommerceController.php
 
 namespace App\Http\Controllers;
 
@@ -10,58 +11,52 @@ class EcommerceController extends Controller
 {
     use LogsActivity;
 
+    // Web routes (untuk admin panel)
     public function index()
     {
         $ecommerce = Ecommerce::all();
         return view('ecommerce.index', compact('ecommerce'));
     }
 
-    public function create()
-    {
-        return view('ecommerce.create');
-    }
-
     public function store(Request $request)
     {
         $validator = validator($request->all(), [
-            'platform' => 'required',
-            'url_link' => 'required|url',
+            'platform' => 'required|string|max:255',
+            'url_link' => 'required|url|max:500',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            return back()->withErrors($validator)->withInput();
         }
 
         $ecommerce = Ecommerce::create($request->only(['platform', 'url_link']));
 
         $this->logActivity('create', 'Menambahkan link e-commerce: ' . $ecommerce->platform, $ecommerce);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'E-Commerce berhasil ditambahkan'
-        ]);
-    }
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'E-Commerce berhasil ditambahkan',
+                'data' => $ecommerce
+            ], 201);
+        }
 
-    public function edit(Ecommerce $ecommerce)
-    {
-        return view('ecommerce.edit', compact('ecommerce'));
+        return redirect()->route('ecommerce.index')
+            ->with('success', 'E-Commerce berhasil ditambahkan');
     }
 
     public function update(Request $request, Ecommerce $ecommerce)
     {
         try {
-            // Log the request for debugging
-            \Log::info('Update request received', [
-                'request' => $request->all(),
-                'headers' => $request->headers->all()
-            ]);
-
             $validator = validator($request->all(), [
-                'platform' => 'required',
-                'url_link' => 'required|url'
+                'platform' => 'required|string|max:255',
+                'url_link' => 'required|url|max:500'
             ]);
 
             if ($validator->fails()) {
@@ -83,7 +78,8 @@ class EcommerceController extends Controller
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'E-Commerce berhasil diperbarui'
+                    'message' => 'E-Commerce berhasil diperbarui',
+                    'data' => $ecommerce
                 ]);
             }
 
@@ -107,17 +103,123 @@ class EcommerceController extends Controller
 
     public function destroy(Ecommerce $ecommerce)
     {
-        // Hapus gambar jika ada
-        if ($ecommerce->image && file_exists(public_path($ecommerce->image))) {
-            unlink(public_path($ecommerce->image));
-        }
-        
         $platform = $ecommerce->platform;
         $ecommerce->delete();
 
         $this->logActivity('delete', 'Menghapus link e-commerce: ' . $platform, $ecommerce);
 
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'E-Commerce berhasil dihapus'
+            ]);
+        }
+
         return redirect()->route('ecommerce.index')
             ->with('success', 'E-Commerce berhasil dihapus');
+    }
+
+    // ============================================
+    // API METHODS (untuk Frontend)
+    // ============================================
+
+    public function apiIndex()
+    {
+        try {
+            $ecommerce = Ecommerce::complete()->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $ecommerce
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('E-Commerce API Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    public function apiStore(Request $request)
+    {
+        $validator = validator($request->all(), [
+            'platform' => 'required|string|max:255',
+            'url_link' => 'required|url|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $ecommerce = Ecommerce::create($request->only(['platform', 'url_link']));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'E-Commerce berhasil ditambahkan',
+                'data' => $ecommerce
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan e-commerce: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiUpdate(Request $request, $id)
+    {
+        $validator = validator($request->all(), [
+            'platform' => 'required|string|max:255',
+            'url_link' => 'required|url|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $ecommerce = Ecommerce::findOrFail($id);
+            $ecommerce->update($request->only(['platform', 'url_link']));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'E-Commerce berhasil diperbarui',
+                'data' => $ecommerce
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui e-commerce: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiDestroy($id)
+    {
+        try {
+            $ecommerce = Ecommerce::findOrFail($id);
+            $ecommerce->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'E-Commerce berhasil dihapus'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus e-commerce: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         deleteBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
                         deleteBtn.onclick = (e) => {
                             e.preventDefault();
-                            this.handleImageDelete(form, image.name, previewWrapper);
+                            this.handleImageDelete(form, image.path, previewWrapper);
                         };
 
                         previewWrapper.appendChild(preview);
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.classList.remove('hidden');
         },
 
-        handleImageDelete: function(form, imageName, previewElement) {
+        handleImageDelete: function(form, imagePath, previewElement) {
             Swal.fire({
                 title: 'Hapus Gambar?',
                 text: "Gambar akan dihapus saat menyimpan perubahan",
@@ -438,10 +438,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     const deletedImagesInput = document.createElement('input');
                     deletedImagesInput.type = 'hidden';
                     deletedImagesInput.name = 'deleted_images[]';
-                    deletedImagesInput.value = imageName;
+                    deletedImagesInput.value = imagePath;
                     form.appendChild(deletedImagesInput);
                     previewElement.remove();
                     this.updateFileInputs('edit');
+                    
+                    console.log('Image marked for deletion:', imagePath);
                 }
             });
         },

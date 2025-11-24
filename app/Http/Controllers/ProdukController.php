@@ -1,4 +1,5 @@
 <?php
+// app/Http/Controllers/ProdukController.php
 
 namespace App\Http\Controllers;
 
@@ -25,12 +26,10 @@ class ProdukController extends Controller
     public function store(Request $request)
     {
         try {
-            // Log untuk debugging
             \Log::info('=== START UPLOAD ===');
             \Log::info('Request data:', $request->except('gambar'));
             \Log::info('Has files:', ['has_file' => $request->hasFile('gambar')]);
             
-            // Validasi
             $validator = validator($request->all(), [
                 'nama' => 'required|string|max:255',
                 'kategori' => 'required|string',
@@ -65,7 +64,6 @@ class ProdukController extends Controller
                 return back()->withErrors($validator)->withInput();
             }
 
-            // Proses upload gambar
             $gambarPaths = [];
             
             if ($request->hasFile('gambar')) {
@@ -76,10 +74,7 @@ class ProdukController extends Controller
                         'mime' => $gambar->getMimeType()
                     ]);
 
-                    // Generate unique filename
                     $filename = time() . '_' . uniqid() . '_' . $index . '.' . $gambar->getClientOriginalExtension();
-                    
-                    // Simpan ke storage/app/public/uploads/produk
                     $path = $gambar->storeAs('uploads/produk', $filename, 'public');
                     
                     if (!$path) {
@@ -97,7 +92,6 @@ class ProdukController extends Controller
 
             \Log::info('All files uploaded:', $gambarPaths);
 
-            // Simpan ke database
             $produk = Produk::create([
                 'nama' => $request->nama,
                 'kategori' => $request->kategori,
@@ -129,7 +123,6 @@ class ProdukController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
-            \Log::error('Stack trace:', ['trace' => $e->getTraceAsString()]);
 
             if ($request->wantsJson() || $request->ajax()) {
                 return response()->json([
@@ -177,30 +170,32 @@ class ProdukController extends Controller
                 return back()->withErrors($validator)->withInput();
             }
 
-            // Get existing images
             $currentImages = $produk->gambar ? json_decode($produk->gambar, true) : [];
             $deletedImages = $request->input('deleted_images', []);
 
             \Log::info('Current images:', $currentImages);
             \Log::info('Deleted images:', $deletedImages);
 
-            // Delete marked images
+            // PERBAIKAN: Hapus gambar yang ada di deleted_images
             foreach ($deletedImages as $deletedImage) {
+                // Cari index gambar yang akan dihapus
                 $key = array_search($deletedImage, $currentImages);
+                
                 if ($key !== false) {
-                    // Hapus file fisik
+                    // Hapus file dari storage
                     if (Storage::disk('public')->exists($deletedImage)) {
                         Storage::disk('public')->delete($deletedImage);
                         \Log::info('Deleted file:', ['file' => $deletedImage]);
                     }
+                    // Hapus dari array
                     unset($currentImages[$key]);
                 }
             }
 
-            // Re-index array
+            // Reset array index setelah menghapus
             $currentImages = array_values($currentImages);
 
-            // Upload new images
+            // Upload gambar baru
             $newImages = [];
             if ($request->hasFile('gambar')) {
                 foreach ($request->file('gambar') as $index => $gambar) {
@@ -214,10 +209,10 @@ class ProdukController extends Controller
                 }
             }
 
-            // Merge existing and new images
+            // Gabungkan gambar lama dan baru
             $allImages = array_merge($currentImages, $newImages);
 
-            // Limit to 4 images
+            // Validasi total gambar
             if (count($allImages) > 4) {
                 if ($request->wantsJson() || $request->ajax()) {
                     return response()->json([
@@ -230,7 +225,7 @@ class ProdukController extends Controller
 
             \Log::info('Final images:', $allImages);
 
-            // Update product
+            // Update produk
             $produk->update([
                 'nama' => $request->nama,
                 'kategori' => $request->kategori,
@@ -281,9 +276,7 @@ class ProdukController extends Controller
             $produk = Produk::findOrFail($id);
             
             if (!$produk->gambar) {
-                return response()->json([
-                    'images' => []
-                ]);
+                return response()->json(['images' => []]);
             }
             
             $images = json_decode($produk->gambar, true);
@@ -293,25 +286,22 @@ class ProdukController extends Controller
                 $imageData[] = [
                     'url' => asset('storage/' . $image),
                     'name' => basename($image),
-                    'path' => $image
+                    'path' => $image  // Ini yang penting untuk penghapusan
                 ];
             }
             
-            return response()->json([
-                'images' => $imageData
-            ]);
+            \Log::info('Images fetched:', ['count' => count($imageData), 'data' => $imageData]);
+            
+            return response()->json(['images' => $imageData]);
         } catch (\Exception $e) {
             \Log::error('Error fetching images:', ['error' => $e->getMessage()]);
-            return response()->json([
-                'error' => 'Gambar tidak ditemukan'
-            ], 404);
+            return response()->json(['error' => 'Gambar tidak ditemukan'], 404);
         }
     }
 
     public function destroy(Produk $produk)
     {
         try {
-            // Hapus semua gambar
             if ($produk->gambar) {
                 $images = json_decode($produk->gambar, true);
                 foreach ($images as $image) {
@@ -334,42 +324,119 @@ class ProdukController extends Controller
         }
     }
 
-    // API Methods
+    // ==================== API METHODS ====================
+    
     public function apiIndex(Request $request)
     {
-        $page = $request->input('page', 1);
-        $perPage = $request->input('per_page', 15);
+        try {
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 15);
 
-        $query = Produk::query();
+            $query = Produk::query();
 
-        // Filter by kategori (category name) if provided
-        if ($request->filled('kategori')) {
-            $query->where('kategori', $request->input('kategori'));
+            // Filter by kategori
+            if ($request->filled('kategori')) {
+                $query->where('kategori', $request->input('kategori'));
+            }
+
+            // Search by product name
+            if ($request->filled('search')) {
+                $search = $request->input('search');
+                $query->where('nama', 'like', "%{$search}%");
+            }
+
+            $produk = $query->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
+
+            // Transform data to include image URLs
+            $data = $produk->getCollection()->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'nama' => $item->nama,
+                    'deskripsi' => $item->deskripsi,
+                    'harga' => $item->harga,
+                    'kategori' => $item->kategori,
+                    'gambar' => $item->gambar,
+                    'gambar_urls' => $item->gambar_urls,
+                    'gambar_utama' => $item->gambar_utama,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data produk berhasil diambil',
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => $produk->currentPage(),
+                    'per_page' => $produk->perPage(),
+                    'total' => $produk->total(),
+                    'last_page' => $produk->lastPage(),
+                    'from' => $produk->firstItem(),
+                    'to' => $produk->lastItem(),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('API Error in apiIndex: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengambil data produk',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+                'data' => [],
+                'pagination' => [
+                    'total' => 0,
+                    'per_page' => 15,
+                    'current_page' => 1,
+                    'last_page' => 1,
+                ]
+            ], 500);
         }
-
-        // Optional: simple search by product name
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where('nama', 'like', "%{$search}%");
-        }
-
-        $produk = $query->paginate($perPage, ['*'], 'page', $page);
-
-        return response()->json([
-            'data' => $produk->items(),
-            'pagination' => [
-                'current_page' => $produk->currentPage(),
-                'per_page' => $produk->perPage(),
-                'total' => $produk->total(),
-                'last_page' => $produk->lastPage()
-            ]
-        ]);
     }
 
     public function apiShow($id)
     {
-        $produk = Produk::findOrFail($id);
-        return response()->json($produk);
+        try {
+            $produk = Produk::find($id);
+            
+            if (!$produk) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produk tidak ditemukan',
+                    'data' => null
+                ], 404);
+            }
+
+            $data = [
+                'id' => $produk->id,
+                'nama' => $produk->nama,
+                'deskripsi' => $produk->deskripsi,
+                'harga' => $produk->harga,
+                'kategori' => $produk->kategori,
+                'gambar' => $produk->gambar,
+                'gambar_urls' => $produk->gambar_urls,
+                'gambar_utama' => $produk->gambar_utama,
+                'created_at' => $produk->created_at,
+                'updated_at' => $produk->updated_at,
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Detail produk berhasil diambil',
+                'data' => $data
+            ], 200);
+            
+        } catch (\Exception $e) {
+            \Log::error('API Error in apiShow: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengambil detail produk',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+                'data' => null
+            ], 500);
+        }
     }
 
     public function apiStore(Request $request)
@@ -408,7 +475,11 @@ class ProdukController extends Controller
             'gambar' => json_encode($gambarPaths)
         ]);
 
-        return response()->json($produk, 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Produk berhasil ditambahkan',
+            'data' => $produk
+        ], 201);
     }
 
     public function apiUpdate(Request $request, $id)
@@ -437,7 +508,6 @@ class ProdukController extends Controller
         $currentImages = $produk->gambar ? json_decode($produk->gambar, true) : [];
         $deletedImages = $request->input('deleted_images', []);
 
-        // Remove deleted images
         foreach ($deletedImages as $deleted) {
             $key = array_search($deleted, $currentImages);
             if ($key !== false) {
@@ -447,7 +517,6 @@ class ProdukController extends Controller
         }
         $currentImages = array_values($currentImages);
 
-        // Add new images
         if ($request->hasFile('gambar')) {
             foreach ($request->file('gambar') as $gambar) {
                 $filename = time() . '_' . uniqid() . '.' . $gambar->getClientOriginalExtension();
@@ -459,7 +528,11 @@ class ProdukController extends Controller
         $data['gambar'] = json_encode(array_slice($currentImages, 0, 4));
         $produk->update($data);
 
-        return response()->json($produk);
+        return response()->json([
+            'success' => true,
+            'message' => 'Produk berhasil diupdate',
+            'data' => $produk
+        ], 200);
     }
 
     public function apiDestroy($id)
@@ -475,6 +548,9 @@ class ProdukController extends Controller
 
         $produk->delete();
 
-        return response()->json(['message' => 'Product deleted successfully'], 200);
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ], 200);
     }
 }

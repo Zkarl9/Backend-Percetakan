@@ -1,4 +1,5 @@
 <?php
+// Backend: app/Models/Ecommerce.php
 
 namespace App\Models;
 
@@ -15,4 +16,12 @@ class Ecommerce extends Model
         'platform',
         'url_link',
     ];
+
+    /**
+     * Scope untuk query lengkap
+     */
+    public function scopeComplete($query)
+    {
+        return $query->select('id', 'platform', 'url_link');
+    }
 }
